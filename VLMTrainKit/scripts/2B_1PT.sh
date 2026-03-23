@@ -33,9 +33,9 @@ datasets="cambrian_737k"
 # Output configuration
 run_name=neo-baseline-PT_2B
 output_dir=./output
-tb_log_dir=${TB_LOG_DIR:-${output_dir}/runs}
-log_dir=${output_dir}/logs
 timestamp=$(date +"%Y%m%d_%H%M%S")
+tb_log_dir=${TB_LOG_DIR:-${output_dir}/runs/${run_name}_${timestamp}}
+log_dir=${output_dir}/logs
 log_file=${log_dir}/${run_name}_${timestamp}.log
 tbdev_upload=${TBDEV_UPLOAD:-0}
 tbdev_name=${TBDEV_NAME:-${run_name}_${timestamp}}
