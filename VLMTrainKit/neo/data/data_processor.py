@@ -1,4 +1,5 @@
 import json
+import os
 import random
 from dataclasses import dataclass
 from functools import partial
@@ -54,6 +55,7 @@ class LazySupervisedDataset(Dataset):
         dataset_list = data_list(data_args.dataset_use.split(","))
         list_data_dict = []
         for data in dataset_list:
+            annotation_dir = os.path.dirname(os.path.abspath(data["annotation_path"]))
             file_format = data["annotation_path"].split(".")[-1]
             if file_format == "jsonl":
                 annotations = read_jsonl(data["annotation_path"])
@@ -71,8 +73,10 @@ class LazySupervisedDataset(Dataset):
                 if isinstance(ann, list):
                     for sub_ann in ann:
                         sub_ann["data_path"] = data["data_path"]
+                        sub_ann["annotation_dir"] = annotation_dir
                 else:
                     ann["data_path"] = data["data_path"]
+                    ann["annotation_dir"] = annotation_dir
             list_data_dict += annotations
         logger.info(f"Total training samples: {len(list_data_dict)}")
         self.list_data_dict = list_data_dict
@@ -94,24 +98,67 @@ class LazySupervisedDataset(Dataset):
                     if hasattr(value, "shape"):
                         logger.info(f"  {key}: shape={value.shape}")
                 return sample
+            except FileNotFoundError as e:
+                logger.warning(
+                    f"[Try #{attempt_idx}] Sample {i} has missing file, will skip this sample. Exception: {e}"
+                )
+                break
             except Exception as e:
                 logger.warning(
                     f"[Try #{attempt_idx}] Failed to fetch sample {i}. Exception: {e}"
                 )
 
-        # If all retries failed, try a random sample
+        # If base retries failed, repeatedly draw another sample and skip broken paths.
+        max_fallback_retries = 50
         logger.error(
-            f"All {num_base_retries} retries failed for sample {i}, using random fallback"
+            f"Sample {i} failed base retries, using random fallback up to {max_fallback_retries} times"
         )
-        random_idx = random.randint(0, len(self.list_data_dict) - 1)
-        sources = self.list_data_dict[random_idx]
-        if isinstance(sources, dict):
-            sources = [sources]
-        sample = self.item_fn(sources)
-        logger.info(
-            f"__getitem__({i}) fallback returning sample with keys: {sample.keys()}"
+        for fallback_idx in range(max_fallback_retries):
+            random_idx = random.randint(0, len(self.list_data_dict) - 1)
+            sources = self.list_data_dict[random_idx]
+            if isinstance(sources, dict):
+                sources = [sources]
+            try:
+                sample = self.item_fn(sources)
+                logger.info(
+                    f"__getitem__({i}) fallback picked sample {random_idx} with keys: {sample.keys()}"
+                )
+                return sample
+            except FileNotFoundError as e:
+                logger.warning(
+                    f"[Fallback #{fallback_idx}] Sample {random_idx} has missing file, skipping. Exception: {e}"
+                )
+                continue
+            except Exception as e:
+                logger.warning(
+                    f"[Fallback #{fallback_idx}] Sample {random_idx} failed, skipping. Exception: {e}"
+                )
+                continue
+
+        raise RuntimeError(
+            f"Failed to fetch a valid sample after {num_base_retries} base retries and {max_fallback_retries} fallback retries."
         )
-        return sample
+
+    def _resolve_image_path(self, image_path: str, source: Dict) -> str:
+        if os.path.isabs(image_path):
+            return image_path
+
+        data_path = source.get("data_path", "") or ""
+        annotation_dir = source.get("annotation_dir", "") or ""
+
+        candidates = []
+        if data_path:
+            candidates.append(os.path.abspath(os.path.join(data_path, image_path)))
+        if annotation_dir:
+            candidates.append(os.path.abspath(os.path.join(annotation_dir, image_path)))
+        candidates.append(os.path.abspath(image_path))
+
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return candidate
+
+        # Return the highest-priority candidate for clearer error messages.
+        return candidates[0]
 
     def _get_item(self, sources) -> Dict[str, torch.Tensor]:
         assert len(sources) == 1, "Only single source is supported."
@@ -155,7 +202,13 @@ class LazySupervisedDataset(Dataset):
             )
             images, num_tiles = [], []
             for image_path in image_path_list:
-                image = Image.open(image_path).convert("RGB")
+                resolved_image_path = self._resolve_image_path(image_path, source)
+                if not os.path.exists(resolved_image_path):
+                    raise FileNotFoundError(
+                        f"Image file not found: {resolved_image_path} (original: {image_path})"
+                    )
+
+                image = Image.open(resolved_image_path).convert("RGB")
                 patch = dynamic_preprocess_native_resolution(
                     image,
                     min_pixels=min_pixels,

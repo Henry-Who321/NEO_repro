@@ -20,6 +20,7 @@ class ModelArguments:
     vision_num_channels: int = field(default=3)
     extra_num_layers: int = field(default=1)
     num_hidden_layers: int = field(default=2)
+    dtype: Optional[str] = field(default="bfloat16")
     # Other model configs
     use_cache: bool = field(default=False)
     # Training control flags

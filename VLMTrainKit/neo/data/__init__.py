@@ -1,8 +1,8 @@
 import re
 
 CAMBRIAN_737K = {
-    "annotation_path": "PATH_TO_CAMBRIAN_737K_ANNOTATION",
-    "data_path": "",
+    "annotation_path": "/vlm/data/Cambrian737k/Cambrian737k/Cambrian737k.json",
+    "data_path": "/vlm/data/Cambrian737k/Cambrian737k",
 }
 
 CAMBRIAN_737K_PACK = {
@@ -31,9 +31,19 @@ SBU_CAPTIONS = {
     "data_path": "",
 }
 
+NEOS = {
+    "annotation_path": "/vlm/pretrain_models/NEO/data/neo_annotations.jsonl",
+    "data_path": "",
+}
+
 
 data_dict = {
     "sbu_captions": SBU_CAPTIONS,
+    "neo": NEOS,
+    "clevr_mc": CLEVR_MC,
+    "cambrian_737k": CAMBRIAN_737K,
+    "cambrian_737k_pack": CAMBRIAN_737K_PACK,
+    "mp_doc": MP_DOC,
 }
 
 
