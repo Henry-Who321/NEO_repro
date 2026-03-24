@@ -5,6 +5,8 @@ import torch
 from transformers import HfArgumentParser, Trainer, set_seed
 from transformers.utils import logging
 
+logger = logging.get_logger(__name__)
+
 from neo.data.data_processor import make_supervised_data_module
 from neo.model.build import build_model_and_tokenizer
 from neo.train.argument import DataArguments, ModelArguments, TrainingArguments
@@ -27,7 +29,7 @@ def safe_save_model_for_hf_trainer(trainer: Trainer, output_dir: str):
 
 def set_model(model_args, model):
     if model_args.train_buffer:
-        logging.info(
+        logger.info(
             f"Only train buffer with extra {model_args.extra_num_layers} layers"
         )
         for name, param in model.named_parameters():
@@ -76,7 +78,7 @@ def train():
         model=model, tokenizer=tokenizer, args=training_args, **data_module
     )
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
-        logging.info("checkpoint found, resume training")
+        logger.info("checkpoint found, resume training")
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
