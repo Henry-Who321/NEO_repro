@@ -10,9 +10,9 @@ deepspeed=./scripts/zero3.json
 
 # Model configuration
 # For detailed logic, refer to: neo/model/build.py build_model function
-mllm="/vlm/hhr/NEO/VLMTrainKit/output/checkpoint-1800"  # Path to pre-trained NEO model for SFT (Supervised Fine-Tuning) on top of an existing checkpoint
+mllm="/vlm/hhr/NEO/VLMTrainKit/output/checkpoint-2000"  # Start from checkpoint-2000 weights
 llm=""  # Path to the base LLM model for training NEO from scratch
-tokenizer="/vlm/hhr/NEO/VLMTrainKit/output/checkpoint-1800"  # Path to the tokenizer
+tokenizer="/vlm/hhr/NEO/VLMTrainKit/output/checkpoint-2000"  # Path to the tokenizer
 
 # Training hyperparameters
 lr=5e-5
@@ -29,7 +29,7 @@ datasets="cambrian_737k"
 
 # Output configuration
 run_name=neo-baseline-PT_2B_2MTsi
-output_dir=./output
+output_dir=./output_2MTsi   # MUST differ from ./output to avoid picking up ZeRO-2 checkpoints as resume targets
 timestamp=$(date +"%Y%m%d_%H%M%S")
 tb_log_dir=${TB_LOG_DIR:-${output_dir}/runs/${run_name}_${timestamp}}
 log_dir=${output_dir}/logs
@@ -48,7 +48,7 @@ args="
     --bf16 True \
     --output_dir ${output_dir} \
     --extra_num_layers 12 \
-    --num_hidden_layers 32 \
+    --num_hidden_layers 40 \
     --max_steps 50000 \
     --per_device_train_batch_size ${batch_size} \
     --per_device_eval_batch_size $((batch_size*2)) \
@@ -92,7 +92,7 @@ torchrun --nproc_per_node=4 \
          ${entry_file} ${args} || train_exit_code=$?
 
 # Optional: one-click upload to TensorBoard.dev (Google account).
-# Usage: TBDEV_UPLOAD=1 bash scripts/2B_1PT.sh
+# Usage: TBDEV_UPLOAD=1 bash scripts/2B_2MTsi.sh
 if [ "${tbdev_upload}" = "1" ]; then
     echo "[INFO] TensorBoard.dev upload enabled."
     if ! command -v tensorboard >/dev/null 2>&1; then
